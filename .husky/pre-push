@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# ---------------------------------------------------------------
+# Pre-push hook — Newman + Smoke Tests
+# Delegates all logic to scripts/run-ci-checks.sh
+#
+# To move tests to pre-commit in future:
+#   Remove this file and add this line to .husky/pre-commit:
+#   ./scripts/run-ci-checks.sh
+# ---------------------------------------------------------------
+
+./scripts/run-ci-checks.sh

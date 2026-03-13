@@ -3,75 +3,82 @@ const { installHusky } = require('../lib/husky');
 const { installGitleaks } = require('../lib/gitleaks');
 const { installSonarScanner, setupSonarProperties } = require('../lib/sonarqube');
 const { setupPreCommitHook } = require('../lib/hooks');
-// Added by Arjun — import CI setup functions from the new lib/ci.js module
 const { setupPrePushHook, setupCIScript, setupCIWorkflow, validateProject, ensurePackageLock } = require('../lib/ci');
 const { isGitRepo } = require('../lib/git');
 const { logInfo, logError, logSuccess } = require('../lib/logger');
 
 const command = process.argv[2];
 
-// Detect how this script is being invoked:
-// 1. Manual CLI:   npx secure-husky-setup init  → command === 'init'
-// 2. postinstall:  npm install                   → npm_lifecycle_event === 'postinstall', no command arg
+// ── Detect invocation context ────────────────────────────────────────────────
+// postinstall: npm_lifecycle_event === 'postinstall'  (no CLI arg)
+// manual CLI:  npx cs-setup init                      (command === 'init')
 const isPostInstall = process.env.npm_lifecycle_event === 'postinstall';
-const shouldRun = command === 'init' || isPostInstall;
 
-if (isPostInstall) {
-  // Try to find the user's project directory (where they ran npm install)
-  const targetDir = process.env.INIT_CWD || process.env.npm_config_local_prefix;
-  
-  if (targetDir && targetDir !== process.cwd()) {
-    logInfo(`Switching to project directory: ${targetDir}`);
-    process.chdir(targetDir);
-  }
+const validCommands = ['init', 'install'];
+
+// Exit early if called with an unknown command
+if (command && !validCommands.includes(command)) {
+  console.log('Usage: cs-setup [init|install]');
+  process.exit(0);
 }
 
-(async () => {
-  if (!shouldRun) {
-    console.log("Usage: secure-husky-setup init");
+// ── Resolve the user's project directory ────────────────────────────────────
+// When npm runs postinstall it sets INIT_CWD to the directory where the user
+// ran `npm install`.  We fall back through several env vars for older npm versions.
+if (isPostInstall) {
+  const targetDir =
+    process.env.INIT_CWD ||            // npm 5.4+ — most reliable
+    process.env.npm_config_local_prefix || // fallback
+    null;
+
+  if (!targetDir) {
+    logError(
+      'Could not determine your project directory. ' +
+      'Please run `npx cs-setup init` manually from your project root.'
+    );
     process.exit(0);
   }
 
+  // Only chdir if we are currently inside node_modules (i.e. postinstall context)
+  if (process.cwd() !== targetDir) {
+    logInfo(`Switching to project directory: ${targetDir}`);
+    try {
+      process.chdir(targetDir);
+    } catch (e) {
+      logError(`Failed to switch directory: ${e.message}`);
+      process.exit(0);
+    }
+  }
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+(async () => {
   try {
-    logInfo("Initializing secure git hooks...");
+    logInfo('Initializing secure git hooks...');
 
     if (!await isGitRepo()) {
-      logError("Not inside a git repository. Skipping automatic secure-husky-setup.");
-      logInfo("Please initialize a git repository first ('git init'), then manually run: npx secure-husky-setup init");
+      logError('Not inside a git repository. Skipping automatic cs-setup.');
+      logInfo("Please run `git init` first, then manually run: npx cs-setup init");
       process.exit(0);
     }
 
-    // ── Existing steps — pre-commit hooks (no changes made here) ─────────────
+    // ── Pre-commit hooks ───────────────────────────────────────────────────
     await installHusky();
     await installGitleaks();
     await installSonarScanner();
     await setupSonarProperties();
     await setupPreCommitHook();
+    logSuccess('Secure Husky + Gitleaks + SonarQube setup completed.');
+    logInfo('Next step: edit sonar-project.properties and set sonar.host.url and sonar.token.');
 
-    logSuccess("Secure Husky + Gitleaks + SonarQube setup completed.");
-    logInfo("Next step: edit sonar-project.properties and set sonar.host.url and sonar.token.");
-
-    // Added by Arjun — pre-push hook + GitHub Actions CI workflow setup ───────
-    // Runs Newman API tests and smoke tests automatically on every git push
-    logInfo("Setting up Newman & Smoke Test CI workflow...");
-
-    // Added by Arjun — ensure package-lock.json exists (required by npm ci in workflow)
+    // ── Pre-push hook + CI workflow (Added by Arjun) ───────────────────────
+    logInfo('Setting up Newman & Smoke Test CI workflow...');
     await ensurePackageLock();
-
-    // Added by Arjun — validate package.json has "start" and "test" scripts
     await validateProject();
-
-    // Added by Arjun — write standalone scripts/run-ci-checks.sh (all test logic lives here)
     await setupCIScript();
-
-    // Added by Arjun — copy ci-tests.yml into .github/workflows/
     await setupCIWorkflow();
-
-    // Added by Arjun — create .husky/pre-push hook (thin wrapper that calls run-ci-checks.sh)
     await setupPrePushHook();
-
-    logSuccess("Newman + Smoke Test pre-push hook and GitHub Actions workflow setup completed.");
-    // ── End of Arjun's additions ──────────────────────────────────────────────
+    logSuccess('Newman + Smoke Test pre-push hook and GitHub Actions workflow setup completed.');
 
   } catch (err) {
     logError(err.message);

@@ -4,7 +4,7 @@
   "description": "Automatic Husky + Gitleaks setup for any JS project",
   "main": "bin/index.js",
   "bin": {
-    "secure-husky-setup": "./bin/index.js"
+    "cs-setup": "./bin/index.js"
   },
   "keywords": [
     "husky",
@@ -15,7 +15,8 @@
   "author": "Your Name",
   "license": "MIT",
   "scripts": {
-    "postinstall": "node ./bin/index.js init"
+    "postinstall": "node ./bin/index.js install",
+    "prepare": "husky"
   },
   "dependencies": {
     "chalk": "^4.1.2",
@@ -23,5 +24,9 @@
     "fs-extra": "^11.3.3",
     "husky": "^9.0.11",
     "sonarqube-scanner": "^4.0.0"
+  },
+  "devDependencies": {
+    "sonarqube-scanner": "latest",
+    "husky": "latest"
   }
 }
