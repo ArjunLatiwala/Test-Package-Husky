@@ -11,19 +11,7 @@
 # ---------------------------------------------------------------
 # Git diff check — only run if actual files changed
 # ---------------------------------------------------------------
-LOCAL=$(git rev-parse @ 2>/dev/null)
-REMOTE=$(git rev-parse @{u} 2>/dev/null)
-
-if [ "$REMOTE" != "" ] && [ "$LOCAL" = "$REMOTE" ]; then
-  echo "[CI Checks] No changes to push. Skipping."
-  exit 0
-fi
-
-if [ "$REMOTE" != "" ]; then
-  CHANGED=$(git diff --name-only "$REMOTE" "$LOCAL" 2>/dev/null)
-else
-  CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
-fi
+CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null)
 
 if [ -z "$CHANGED" ]; then
   echo "[CI Checks] No changed files detected. Skipping."
@@ -43,7 +31,7 @@ echo "[CI Checks] Starting checks..."
 # Diff Filter — Run heavy tests only if backend/API files changed
 # ---------------------------------------------------------------
 
-API_CHANGE=$(echo "$CHANGED" | grep -vE '(\.md$|\.txt$|\.png$|\.jpg$|\.svg$|\.ico$|^\.github|^docs|^README)')
+API_CHANGE=$(echo "$CHANGED" | grep -E '\.(js|ts|jsx|tsx)$|package\.json|routes/|controllers/|services/|server/|api/')
 
 if [ -z "$API_CHANGE" ]; then
   echo ""
