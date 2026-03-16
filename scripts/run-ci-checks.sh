@@ -37,6 +37,19 @@ echo "$CHANGED" | sed 's/^/  -> /'
 echo ""
 echo "[CI Checks] Starting checks..."
 
+
+
+# ---------------------------------------------------------------
+# Diff Filter — Run heavy tests only if backend/API files changed
+# ---------------------------------------------------------------
+
+API_CHANGE=$(echo "$CHANGED" | grep -vE '(\.md$|\.txt$|\.png$|\.jpg$|\.svg$|\.ico$|^\.github|^docs|^README)')
+
+if [ -z "$API_CHANGE" ]; then
+  echo ""
+  echo "[CI Checks] Only docs/assets changed — skipping smoke tests and Newman."
+  exit 0
+fi
 # ---------------------------------------------------------------
 # Find which directory has the start script
 # Checks root first, then common subfolder names
