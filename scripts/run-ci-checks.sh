@@ -72,6 +72,14 @@ else
   echo ""
   echo "[Smoke Tests] Starting server from: $PROJECT_DIR"
 
+  NODE_MAJOR=$(node -v | cut -d '.' -f1 | tr -d 'v')
+
+  if [ "$NODE_MAJOR" -ge 17 ]; then
+    echo "[Smoke Tests] Applying OpenSSL legacy provider fix for Node $NODE_MAJOR"
+    export NODE_OPTIONS=--openssl-legacy-provider
+  fi
+
+
   npm start &
   SERVER_PID=$!
 
@@ -85,7 +93,7 @@ else
       break
     fi
 
-    for PORT_TRY in 3000 5000 8000 8080 4000 4200 3001 8081 1337 5001; do
+    for PORT_TRY in 3000 3001 4000 4200 5000 5173 5174 8000 8080 8081 9000 1337; do
       if curl -sf http://localhost:$PORT_TRY > /dev/null 2>&1; then
         PORT=$PORT_TRY
         SERVER_UP=1
