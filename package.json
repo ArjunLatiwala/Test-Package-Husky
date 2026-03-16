@@ -15,8 +15,7 @@
   "author": "Your Name",
   "license": "MIT",
   "scripts": {
-    "postinstall": "node ./bin/index.js install",
-    "prepare": "husky"
+    "postinstall": "node ./bin/index.js install"
   },
   "dependencies": {
     "chalk": "^4.1.2",

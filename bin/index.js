@@ -9,26 +9,19 @@ const { logInfo, logError, logSuccess } = require('../lib/logger');
 
 const command = process.argv[2];
 
-// ── Detect invocation context ────────────────────────────────────────────────
-// postinstall: npm_lifecycle_event === 'postinstall'  (no CLI arg)
-// manual CLI:  npx cs-setup init                      (command === 'init')
 const isPostInstall = process.env.npm_lifecycle_event === 'postinstall';
-
 const validCommands = ['init', 'install'];
 
-// Exit early if called with an unknown command
 if (command && !validCommands.includes(command)) {
   console.log('Usage: cs-setup [init|install]');
   process.exit(0);
 }
 
-// ── Resolve the user's project directory ────────────────────────────────────
-// When npm runs postinstall it sets INIT_CWD to the directory where the user
-// ran `npm install`.  We fall back through several env vars for older npm versions.
+// Resolve project directory during postinstall
 if (isPostInstall) {
   const targetDir =
-    process.env.INIT_CWD ||            // npm 5.4+ — most reliable
-    process.env.npm_config_local_prefix || // fallback
+    process.env.INIT_CWD ||
+    process.env.npm_config_local_prefix ||
     null;
 
   if (!targetDir) {
@@ -39,7 +32,6 @@ if (isPostInstall) {
     process.exit(0);
   }
 
-  // Only chdir if we are currently inside node_modules (i.e. postinstall context)
   if (process.cwd() !== targetDir) {
     logInfo(`Switching to project directory: ${targetDir}`);
     try {
@@ -51,33 +43,40 @@ if (isPostInstall) {
   }
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 (async () => {
   try {
     logInfo('Initializing secure git hooks...');
 
-    if (!await isGitRepo()) {
+    const { found, gitRoot, projectRoot } = await isGitRepo();
+
+    if (!found) {
       logError('Not inside a git repository. Skipping automatic cs-setup.');
-      logInfo("Please run `git init` first, then manually run: npx cs-setup init");
+      logInfo('Please run `git init` first, then manually run: npx cs-setup init');
       process.exit(0);
     }
 
-    // ── Pre-commit hooks ───────────────────────────────────────────────────
-    await installHusky();
+    if (gitRoot !== projectRoot) {
+      logInfo(`Git root detected at: ${gitRoot}`);
+      logInfo(`Project root (package.json): ${projectRoot}`);
+      logInfo(`Monorepo/subfolder setup — hooks at git root, config at project root.`);
+    }
+
+    // Pre-commit hooks
+    await installHusky(gitRoot);
     await installGitleaks();
     await installSonarScanner();
     await setupSonarProperties();
-    await setupPreCommitHook();
+    await setupPreCommitHook(gitRoot);
     logSuccess('Secure Husky + Gitleaks + SonarQube setup completed.');
     logInfo('Next step: edit sonar-project.properties and set sonar.host.url and sonar.token.');
 
-    // ── Pre-push hook + CI workflow (Added by Arjun) ───────────────────────
+    // Pre-push hook + CI workflow
     logInfo('Setting up Newman & Smoke Test CI workflow...');
     await ensurePackageLock();
     await validateProject();
-    await setupCIScript();
+    await setupCIScript(gitRoot);
     await setupCIWorkflow();
-    await setupPrePushHook();
+    await setupPrePushHook(gitRoot);
     logSuccess('Newman + Smoke Test pre-push hook and GitHub Actions workflow setup completed.');
 
   } catch (err) {
